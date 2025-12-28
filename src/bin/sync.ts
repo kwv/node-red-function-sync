@@ -1,22 +1,21 @@
 #!/usr/bin/env node
-const fs = require('node:fs');
-const path = require('node:path');
-const { parseArgs } = require('node:util');
-
-// Regex for Metadata
-// Matches /* flows.json attributes ... */ block anywhere in the file (header or footer)
-const METADATA_REGEX = /\/\*\s*flows\.json (?:attributes|metadata)([\s\S]*?)\*\//;
+import fs from 'node:fs';
+import path from 'node:path';
+import { parseArgs } from 'node:util';
+import { METADATA_REGEX, Metadata, prepareScriptContent } from '../utils.js';
 
 // Parse CLI Arguments
 const options = {
-    flows: { type: 'string', default: 'flows.json' },
-    src: { type: 'string', default: 'src' },
-    help: { type: 'boolean', short: 'h' },
+    flows: { type: 'string' as const, default: 'flows.json' },
+    src: { type: 'string' as const, default: 'src' },
+    help: { type: 'boolean' as const, short: 'h' as const },
 };
 
+let values: any;
 try {
-    var { values } = parseArgs({ options });
-} catch (e) {
+    const parsed = parseArgs({ options });
+    values = parsed.values;
+} catch (e: any) {
     console.error(e.message);
     process.exit(1);
 }
@@ -38,10 +37,10 @@ Options:
 const FLOWS_PATH = path.resolve(process.cwd(), values.flows);
 const SRC_DIR = path.resolve(process.cwd(), values.src);
 
-function scanScripts(rootDir) {
-    const updates = {};
+function scanScripts(rootDir: string) {
+    const updates: Record<string, { file: string, name?: string, content: string }> = {};
 
-    function walk(dir) {
+    function walk(dir: string) {
         const files = fs.readdirSync(dir);
         for (const file of files) {
             const filepath = path.join(dir, file);
@@ -49,21 +48,21 @@ function scanScripts(rootDir) {
 
             if (stat.isDirectory()) {
                 walk(filepath);
-            } else if (file.endsWith('.js')) {
+            } else if (file.endsWith('.js') || file.endsWith('.ts')) {
                 try {
                     const content = fs.readFileSync(filepath, 'utf8');
                     const match = content.match(METADATA_REGEX);
 
                     if (match) {
                         try {
-                            let metaStr = match[1].trim();
-                            if (!metaStr.startsWith('{')) {
-                                metaStr = `{${metaStr}}`;
-                            }
+                            const metaStr = match[1]?.trim() || '';
+                            if (!metaStr) continue;
+                            let finalMetaStr = metaStr;
+                            if (!finalMetaStr.startsWith('{')) finalMetaStr = `{${finalMetaStr}}`;
                             // Cleanup trailing commas mostly
-                            metaStr = metaStr.replace(/,\s*}/g, '}');
+                            finalMetaStr = finalMetaStr.replace(/,\s*}/g, '}');
 
-                            const meta = JSON.parse(metaStr);
+                            const meta = JSON.parse(finalMetaStr) as Metadata;
                             const nodeId = meta.id;
 
                             if (nodeId) {
@@ -73,11 +72,11 @@ function scanScripts(rootDir) {
                                     content: content
                                 };
                             }
-                        } catch (parseErr) {
+                        } catch (parseErr: any) {
                             console.warn(`⚠️  Warning: Invalid metadata in ${file}: ${parseErr.message}`);
                         }
                     }
-                } catch (readErr) {
+                } catch (readErr: any) {
                     console.warn(`⚠️  Warning: Could not read ${file}: ${readErr.message}`);
                 }
             }
@@ -90,31 +89,7 @@ function scanScripts(rootDir) {
     return updates;
 }
 
-function prepareScriptContent(rawContent) {
-    // 1. Remove metadata block
-    let content = rawContent.replace(METADATA_REGEX, '').trim();
-
-    // 2. Strip module.exports wrapper
-    // Regex matches: module.exports = function (...) {
-    // We allow optional 'async' and whitespace variations
-    const wrapperStartRegex = /^module\.exports\s*=\s*(?:async\s+)?function\s*\([^)]*\)\s*\{/;
-    const startMatch = content.match(wrapperStartRegex);
-
-    if (startMatch) {
-        // Strip the header
-        content = content.substring(startMatch[0].length);
-
-        // Strip the trailing };
-        // We find the last instance of };
-        const lastBraceIdx = content.lastIndexOf('};');
-        if (lastBraceIdx !== -1) {
-            content = content.substring(0, lastBraceIdx);
-        }
-        return content.trim();
-    }
-
-    return content;
-}
+// prepareScriptContent moved to utils.ts
 
 function run() {
     console.log(`🔍 Scanning ${SRC_DIR} for scripts...`);
@@ -134,7 +109,7 @@ function run() {
     console.log(`📂 Found ${updateCount} scripts to sync.`);
     console.log(`📖 Reading flows from: ${FLOWS_PATH}`);
 
-    let flows;
+    let flows: any[];
     try {
         const flowsContent = fs.readFileSync(FLOWS_PATH, 'utf8');
         flows = JSON.parse(flowsContent);

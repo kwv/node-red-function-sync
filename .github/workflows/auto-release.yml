@@ -1,0 +1,39 @@
+name: Auto Release
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  release:
+    # Only run on merged Dependabot PRs
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.user.login, 'dependabot')
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configure git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump patch version and create tag
+        run: |
+          npm version patch --no-git-tag-version
+          VERSION=$(jq -r '.version' package.json)
+          git add package.json
+          git commit -m "chore: release v${VERSION}"
+          git tag "v${VERSION}"
+          git push origin main --follow-tags
