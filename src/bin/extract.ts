@@ -1,25 +1,28 @@
 #!/usr/bin/env node
-const fs = require('node:fs');
-const path = require('node:path');
-const { parseArgs } = require('node:util');
-
-// Regex for Metadata
-const METADATA_REGEX = /\/\*\s*flows\.json (?:attributes|metadata)([\s\S]*?)\*\//;
+import fs from 'node:fs';
+import path from 'node:path';
+import { parseArgs } from 'node:util';
+import { buildIdMap, METADATA_REGEX, wrapScriptContent, Metadata } from '../utils.js';
 
 // Regex for Complexity Metrics
 const COMPLEXITY_REGEX = /\b(if|else|for|while|case|catch|switch|do)\b|&&|\|\||\?/g;
 
 // Parse CLI Arguments
 const options = {
-    flows: { type: 'string', default: 'flows.json' },
-    src: { type: 'string', default: 'src' },
-    scan: { type: 'boolean' },
-    help: { type: 'boolean', short: 'h' },
+    flows: { type: 'string' as const, default: 'flows.json' },
+    src: { type: 'string' as const, default: 'src' },
+    scan: { type: 'boolean' as const },
+    help: { type: 'boolean' as const, short: 'h' as const },
 };
 
+let values: any;
+let positionals: string[];
+
 try {
-    var { values, positionals } = parseArgs({ options, allowPositionals: true });
-} catch (e) {
+    const parsed = parseArgs({ options, allowPositionals: true });
+    values = parsed.values;
+    positionals = parsed.positionals;
+} catch (e: any) {
     console.error(e.message);
     process.exit(1);
 }
@@ -45,7 +48,7 @@ Arguments:
 const FLOWS_PATH = path.resolve(process.cwd(), values.flows);
 const SRC_DIR = path.resolve(process.cwd(), values.src);
 
-function calculateMetrics(code) {
+function calculateMetrics(code: string) {
     const lines = code.split('\n').filter(l => l.trim().length > 0);
     const loc = lines.length;
 
@@ -57,53 +60,9 @@ function calculateMetrics(code) {
     return { loc, complexity };
 }
 
-function buildIdMap(rootDir) {
-    const idMap = new Map();
-
-    function walk(dir) {
-        if (!fs.existsSync(dir)) return;
-        const files = fs.readdirSync(dir);
-        for (const file of files) {
-            const filepath = path.join(dir, file);
-            const stat = fs.statSync(filepath);
-
-            if (stat.isDirectory()) {
-                walk(filepath);
-            } else if (file.endsWith('.js')) {
-                try {
-                    const content = fs.readFileSync(filepath, 'utf8');
-                    const match = content.match(METADATA_REGEX);
-
-                    if (match) {
-                        let metaStr = match[1].trim();
-                        if (!metaStr.startsWith('{')) {
-                            metaStr = `{${metaStr}}`;
-                        }
-                        metaStr = metaStr.replace(/,\s*}/g, '}');
-
-                        try {
-                            const meta = JSON.parse(metaStr);
-                            if (meta.id) {
-                                idMap.set(meta.id, filepath);
-                            }
-                        } catch (e) {
-                            // ignore invalid json during scan
-                        }
-                    }
-                } catch (e) {
-                    // ignore read errors
-                }
-            }
-        }
-    }
-
-    walk(rootDir);
-    return idMap;
-}
-
-function scanFunctions(flows, srcDir) {
+function scanFunctions(flows: any[], srcDir: string) {
     const exportedMap = buildIdMap(srcDir);
-    const tabMap = new Map();
+    const tabMap = new Map<string, string>();
 
     // Build Tab Map
     flows.forEach(n => {
@@ -112,7 +71,7 @@ function scanFunctions(flows, srcDir) {
         }
     });
 
-    const candidates = [];
+    const candidates: any[] = [];
 
     flows.forEach(node => {
         if (node.type !== 'function') return;
@@ -151,10 +110,10 @@ function scanFunctions(flows, srcDir) {
     });
 }
 
-function findFileById(nodeId, rootDir) {
-    let result = null;
+function findFileById(nodeId: string, rootDir: string): { filepath: string, content: string } | null {
+    let result: { filepath: string, content: string } | null = null;
 
-    function walk(dir) {
+    function walk(dir: string) {
         if (!fs.existsSync(dir)) return;
         const files = fs.readdirSync(dir);
 
@@ -165,15 +124,17 @@ function findFileById(nodeId, rootDir) {
             if (stat.isDirectory()) {
                 walk(filepath);
                 if (result) return;
-            } else if (file.endsWith('.js')) {
+            } else if (file.endsWith('.js') || file.endsWith('.ts')) {
                 try {
                     const content = fs.readFileSync(filepath, 'utf8');
                     const match = content.match(METADATA_REGEX);
                     if (match) {
-                        let metaStr = match[1].trim();
-                        if (!metaStr.startsWith('{')) metaStr = `{${metaStr}}`;
-                        metaStr = metaStr.replace(/,\s*}/g, '}');
-                        const meta = JSON.parse(metaStr);
+                        const metaStr = match[1]?.trim() || '';
+                        if (!metaStr) continue;
+                        let finalMetaStr = metaStr;
+                        if (!finalMetaStr.startsWith('{')) finalMetaStr = `{${finalMetaStr}}`;
+                        finalMetaStr = finalMetaStr.replace(/,\s*}/g, '}');
+                        const meta = JSON.parse(finalMetaStr);
 
                         if (meta.id === nodeId) {
                             result = { filepath, content };
@@ -191,7 +152,7 @@ function findFileById(nodeId, rootDir) {
     return result;
 }
 
-function updateFileContent(filepath, originalContent, newFuncBody) {
+function updateFileContent(nodeId: string, filepath: string, originalContent: string, newFuncBody: string) {
     const match = originalContent.match(METADATA_REGEX);
     if (!match) {
         console.error("Error: Metadata block lost during processing.");
@@ -200,21 +161,14 @@ function updateFileContent(filepath, originalContent, newFuncBody) {
 
     const metadataBlock = match[0];
 
-    const indentedBody = newFuncBody.split('\n').map(line => '    ' + line).join('\n');
-
-    const newContent = `module.exports = function (msg, flow, env, node, global, context) {
-${indentedBody}
-};
-
-${metadataBlock}
-`;
+    const newContent = wrapScriptContent(nodeId, '', newFuncBody);
 
     fs.writeFileSync(filepath, newContent.trim() + '\n', 'utf8');
     return true;
 }
 
 function run() {
-    let flows;
+    let flows: any[];
     try {
         const flowsContent = fs.readFileSync(FLOWS_PATH, 'utf8');
         flows = JSON.parse(flowsContent);
@@ -252,7 +206,7 @@ function run() {
     if (fileInfo) {
         console.log(`📂 Target file: ${fileInfo.filepath}`);
         const funcContent = targetNode.func || '';
-        if (updateFileContent(fileInfo.filepath, fileInfo.content, funcContent)) {
+        if (updateFileContent(nodeId, fileInfo.filepath, fileInfo.content, funcContent)) {
             console.log(`💾 Successfully updated ${path.basename(fileInfo.filepath)}`);
         } else {
             console.error("❌ Failed to update file.");
@@ -274,23 +228,13 @@ function run() {
         // Ensure src dir exists (we checked it earlier but good to be sure)
         if (!fs.existsSync(SRC_DIR)) fs.mkdirSync(SRC_DIR, { recursive: true });
 
-        // Construct initial content
         const funcContent = targetNode.func || '';
-        const indentedBody = funcContent.split('\n').map(line => '    ' + line).join('\n');
-
-        const initialContent = `module.exports = function (msg, flow, env, node, global, context) {
-${indentedBody}
-};
-
-/* flows.json attributes
-    "id": "${nodeId}",
-    "name": "${targetNode.name || ''}"
-*/`;
+        const initialContent = wrapScriptContent(nodeId, targetNode.name || '', funcContent);
 
         try {
             fs.writeFileSync(filepath, initialContent, 'utf8');
             console.log(`💾 Created ${path.basename(filepath)}`);
-        } catch (e) {
+        } catch (e: any) {
             console.error(`❌ Failed to create file: ${e.message}`);
             process.exit(1);
         }

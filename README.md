@@ -7,67 +7,58 @@ A collection of Node.js scripts to help professionalize Node-RED development by 
 - **Extract to Local**: Extract internal Node-RED function nodes to local `.js` files.
 - **Bi-Directional Sync**: Edit `.js` files locally and sync them back to `flows.json`.
 - **Complexity Scanner**: Scan your `flows.json` to identify complex function nodes that should be externalized and tested.
-- **Testability**: Automatically wraps function bodies in `module.exports = function(...)` for easy unit testing with `node --test` or `mocha`.
-
-## Scripts
-
-### 1. `nr-extract`
-Extracts a specific function node by ID (or scans for candidates).
-
-**Usage:**
-```bash
-# Scan for candidates
-node bin/extract.js --scan --flows /path/to/flows.json
-
-# Extract a specific node
-node bin/extract.js <NODE_ID> --src ./src --flows ./flows.json
-```
-
-### 2. `nr-sync`
-Syncs changes from local `.js` files back into `flows.json`.
-
-**Usage:**
-```bash
-node bin/sync.js --src ./src --flows ./flows.json
-```
-
-### Argument Details
-
-#### `--src <path>` (Default: `./src`)
-Specifies the root directory for your local JavaScript files.
-- **In `nr-extract`**: Used to look up existing files to update by ID, and to determine "EXPORTED" status during scans.
-- **In `nr-sync`**: Recursively scans this directory for **any** `.js` file containing the `/* flows.json attributes ... */` metadata block.
+- **Testability**: Automatically wraps function bodies in a testable `module.exports = function(...)` wrapper.
 
 ## Installation
 
-Install via npm:
+Install via npm to use the CLI tools:
 
 ```bash
 npm install --save-dev node-red-function-sync
 ```
 
-## Getting Started
+## Usage
 
-1.  **Initialize your project** (if you haven't already):
-    ```bash
-    mkdir my-flows
-    cd my-flows
-    npm init -y
-    ```
+### 1. Extracting Function Nodes (`nr-extract`)
 
-2.  **Scan your flows** to see what's worth extracting:
-    ```bash
-    npx nr-extract --scan
-    ```
+Used to scan for candidates or extract a specific node by its ID.
 
-3.  **Extract a node**:
-    Pick an ID from the scan list and extract it. The tool will automatically create a file in `src/`.
-    ```bash
-    npx nr-extract <NODE_ID>
-    ```
+```bash
+# Scan for complex candidates in flows.json
+npx nr-extract --scan
 
-4.  **Edit and Sync**:
-    Modify the file in `src/` using your favorite IDE. When ready, sync back:
-    ```bash
-    npx nr-sync
-    ```
+# Extract a specific node to the src directory
+npx nr-extract <NODE_ID> --src ./src --flows ./flows.json
+```
+
+**Options:**
+- `--flows <path>`: Path to your `flows.json` (Default: `flows.json`)
+- `--src <path>`: Local directory to save scripts (Default: `src`)
+- `--scan`: Analyze all function nodes and sort by complexity.
+
+### 2. Synchronizing Changes (`nr-sync`)
+
+Used to push local changes from your `.js` files back into the `flows.json`.
+
+```bash
+npx nr-sync --src ./src --flows ./flows.json
+```
+
+**Options:**
+- `--flows <path>`: Path to your `flows.json` (Default: `flows.json`)
+- `--src <path>`: Local directory to scan for changes (Default: `src`)
+
+## Workflow Guide
+
+1.  **Extract**: Use `npx nr-extract --scan` to find nodes, then `npx nr-extract <ID>` to pull them locally.
+2.  **Edit**: Open the generated file in `src/` with your favorite IDE.
+3.  **Sync**: Run `npx nr-sync` to update your Node-RED flows.
+4.  **Deploy**: Restart or reload Node-RED to apply the changes.
+
+## Development
+
+To run the internal unit tests:
+
+```bash
+npm test
+```
