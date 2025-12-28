@@ -80,12 +80,12 @@ export function prepareScriptContent(rawContent: string): string {
     // 2. Strip module.exports wrapper
     // Regex matches: module.exports = function (...) {
     // We allow optional 'async' and whitespace variations
-    const wrapperStartRegex = /^module\.exports\s*=\s*(?:async\s+)?function\s*\([^)]*\)\s*\{/;
+    const wrapperStartRegex = /module\.exports\s*=\s*(?:async\s+)?function\s*\([^)]*\)\s*\{/;
     const startMatch = content.match(wrapperStartRegex);
 
     if (startMatch) {
-        // Strip the header
-        content = content.substring(startMatch[0].length);
+        // Strip everything before and including the function signature (dropping file-level comments)
+        content = content.substring(startMatch.index! + startMatch[0].length);
 
         // Strip the trailing };
         // We find the last instance of };
