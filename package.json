@@ -30,7 +30,7 @@
     "scripts": {
         "build": "tsup src/*.ts src/bin/*.ts --format cjs,esm --dts --out-dir dist",
         "build:watch": "tsup --watch src/*.ts src/bin/*.ts --format cjs,esm --dts --out-dir dist",
-        "test": "npm run build && node --test dist/index.spec.js",
+        "test": "tsx --test src/index.spec.ts",
         "prepare": "npm run build",
         "prepublishOnly": "npm test"
     },
