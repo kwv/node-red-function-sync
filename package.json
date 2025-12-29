@@ -28,8 +28,8 @@
         "local-dev"
     ],
     "scripts": {
-        "build": "tsup src/*.ts src/bin/*.ts --format cjs,esm --dts --out-dir dist",
-        "build:watch": "tsup --watch src/*.ts src/bin/*.ts --format cjs,esm --dts --out-dir dist",
+        "build": "tsup src/*.ts --format cjs,esm --dts --out-dir dist",
+        "build:watch": "tsup --watch src/*.ts --format cjs,esm --dts --out-dir dist",
         "test": "tsx --test src/index.spec.ts",
         "prepare": "npm run build",
         "prepublishOnly": "npm test"

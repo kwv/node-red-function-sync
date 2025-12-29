@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { METADATA_REGEX, Metadata, prepareScriptContent } from '../utils.js';
+import { METADATA_REGEX, Metadata, prepareScriptContent } from './utils.js';
 
 // Parse CLI Arguments
 const options = {
