@@ -167,6 +167,12 @@ function updateFileContent(nodeId: string, filepath: string, originalContent: st
     return true;
 }
 
+function sanitize(name: string): string {
+    return name.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+}
+
 function run() {
     let flows: any[];
     try {
@@ -194,46 +200,57 @@ function run() {
         process.exit(1);
     }
 
+    // Build Tab Map
+    const tabMap = new Map<string, string>();
+    flows.forEach(n => {
+        if (n.type === 'tab') {
+            tabMap.set(n.id, n.label || n.id);
+        }
+    });
+
     console.log(`✅ Found node: '${targetNode.name || 'unnamed'}' (${nodeId})`);
+
+    const tabName = tabMap.get(targetNode.z) || 'global';
+    const nodeName = targetNode.name || nodeId;
+    const targetFilename = `${sanitize(nodeName)}.js`;
+    const targetDir = path.join(SRC_DIR, sanitize(tabName));
+    const targetPath = path.join(targetDir, targetFilename);
+
     console.log(`🔍 Searching ${SRC_DIR} for existing file...`);
 
     if (!fs.existsSync(SRC_DIR)) {
-        console.error(`❌ Source directory not found: ${SRC_DIR}`);
-        process.exit(1);
+        fs.mkdirSync(SRC_DIR, { recursive: true });
     }
 
     const fileInfo = findFileById(nodeId, SRC_DIR);
+    const funcContent = targetNode.func || '';
+
     if (fileInfo) {
-        console.log(`📂 Target file: ${fileInfo.filepath}`);
-        const funcContent = targetNode.func || '';
-        if (updateFileContent(nodeId, fileInfo.filepath, fileInfo.content, funcContent)) {
-            console.log(`💾 Successfully updated ${path.basename(fileInfo.filepath)}`);
+        let currentPath = fileInfo.filepath;
+        if (path.resolve(currentPath) !== path.resolve(targetPath)) {
+            console.log(`🚚 Moving file from ${path.relative(SRC_DIR, currentPath)} to ${path.relative(SRC_DIR, targetPath)}`);
+            if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+            fs.renameSync(currentPath, targetPath);
+            currentPath = targetPath;
+        }
+
+        console.log(`📂 Target file: ${currentPath}`);
+        if (updateFileContent(nodeId, currentPath, fileInfo.content, funcContent)) {
+            console.log(`💾 Successfully updated ${path.relative(SRC_DIR, currentPath)}`);
         } else {
             console.error("❌ Failed to update file.");
         }
     } else {
         // File doesn't exist, create it
-        console.log(`✨ Creating new file for node '${targetNode.name || nodeId}'...`);
+        console.log(`✨ Creating new file at ${path.relative(SRC_DIR, targetPath)}...`);
 
-        // Determine filename
-        let filename = (targetNode.name || nodeId).toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '');
+        if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
 
-        if (!filename) filename = nodeId;
-        if (!filename.endsWith('.js')) filename += '.js';
-
-        const filepath = path.join(SRC_DIR, filename);
-
-        // Ensure src dir exists (we checked it earlier but good to be sure)
-        if (!fs.existsSync(SRC_DIR)) fs.mkdirSync(SRC_DIR, { recursive: true });
-
-        const funcContent = targetNode.func || '';
         const initialContent = wrapScriptContent(nodeId, targetNode.name || '', funcContent);
 
         try {
-            fs.writeFileSync(filepath, initialContent, 'utf8');
-            console.log(`💾 Created ${path.basename(filepath)}`);
+            fs.writeFileSync(targetPath, initialContent, 'utf8');
+            console.log(`💾 Created ${path.relative(SRC_DIR, targetPath)}`);
         } catch (e: any) {
             console.error(`❌ Failed to create file: ${e.message}`);
             process.exit(1);
