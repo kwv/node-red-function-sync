@@ -1,6 +1,6 @@
 {
     "name": "node-red-function-sync",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "description": "Tooling for developing Node-RED function nodes locally using standard JavaScript workflows.",
     "author": "Kris Van de Steeg",
     "license": "MIT",
