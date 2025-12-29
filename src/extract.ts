@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { buildIdMap, METADATA_REGEX, wrapScriptContent, Metadata } from '../utils.js';
+import { buildIdMap, METADATA_REGEX, wrapScriptContent, Metadata } from './utils.js';
 
 // Regex for Complexity Metrics
 const COMPLEXITY_REGEX = /\b(if|else|for|while|case|catch|switch|do)\b|&&|\|\||\?/g;
