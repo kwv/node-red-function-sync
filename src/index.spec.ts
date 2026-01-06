@@ -14,7 +14,7 @@ module.exports = function (msg) {
 */
 `;
     const meta = getMetadata(content);
-    assert.deepStrictEqual(meta, { id: 'node-123', name: 'My Node', z: 'global' });
+    assert.deepStrictEqual(meta, { id: 'node-123', name: 'My Node', z: '' });
 });
 
 test('getMetadata - parses valid metadata at the start', () => {
@@ -29,7 +29,7 @@ module.exports = function (msg) {
 };
 `;
     const meta = getMetadata(content);
-    assert.deepStrictEqual(meta, { id: 'node-456', name: 'Other Node', z: 'global' });
+    assert.deepStrictEqual(meta, { id: 'node-456', name: 'Other Node', z: '' });
 });
 
 test('getMetadata - parses JSDoc format', () => {

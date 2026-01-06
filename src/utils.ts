@@ -76,7 +76,7 @@ export function getMetadata(content: string): Metadata | null {
             return {
                 id: data.id,
                 name: data.name,
-                z: data.z || data.tabId || 'global'
+                z: data.z || data.tabId || ''
             };
         } catch (e) {
             return null;

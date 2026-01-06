@@ -197,9 +197,9 @@ function run() {
     const tabMap = new Map<string, string>();
     flows.forEach(n => {
         if (n.type === 'tab') {
-            tabMap.set(n.id, n.label || n.id);
+            tabMap.set(n.id, n.label || 'unnamed');
         } else if (n.type === 'subflow') {
-            tabMap.set(n.id, n.name || n.id);
+            tabMap.set(n.id, n.name || 'unnamed');
         }
     });
 
