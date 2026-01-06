@@ -39,10 +39,16 @@ jobs:
 
       - name: Cleanup Releases, Tags, and NPM Versions
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          CUSTOM_NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
+          
+          # Setup manual auth to bypass masking bug
+          # We avoid the name "NODE_AUTH_TOKEN" because npm CLI validates it as a header value
+          # even before running the command, and fails on masked "***" values.
+          echo "//registry.npmjs.org/:_authToken=${CUSTOM_NPM_TOKEN}" > .npmrc
+          trap 'rm -f .npmrc' EXIT
           
           PACKAGE_NAME=$(jq -r .name package.json)
           echo "🚀 Starting release cleanup for $PACKAGE_NAME"
@@ -56,7 +62,7 @@ jobs:
           
           # 2. Get Version Info from NPM
           echo "📊 Analyzing NPM versions..."
-          NPM_VERSIONS=$(NODE_AUTH_TOKEN="" npm view "$PACKAGE_NAME" versions --json | jq -r 'if type=="array" then .[] else . end' | sed 's/^/v/' || true)
+          NPM_VERSIONS=$(npm view "$PACKAGE_NAME" versions --json | jq -r 'if type=="array" then .[] else . end' | sed 's/^/v/' || true)
           
           # 3. Consolidate list of all unique version tags (v*)
           ALL_VERSION_TAGS=$(printf "%s\n%s" "$(echo "$GIT_VERSION_TAGS")" "$(echo "$NPM_VERSIONS")" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -u || true)
