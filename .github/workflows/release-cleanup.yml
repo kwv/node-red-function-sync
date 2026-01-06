@@ -1,0 +1,105 @@
+name: Release Cleanup
+
+on:
+  schedule:
+    - cron: "0 4 * * 0"  # every Sunday at 04:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry Run (true/false)'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    env:
+      KEEP_RECENT: '2'
+      DRY_RUN: ${{ inputs.dry_run || 'false' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install Dependencies
+        run: sudo apt-get update && sudo apt-get install -y jq curl
+
+      - name: Cleanup Releases, Tags, and NPM Versions
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          
+          PACKAGE_NAME=$(jq -r .name package.json)
+          echo "🚀 Starting release cleanup for $PACKAGE_NAME"
+          echo "🔹 KEEP_RECENT: $KEEP_RECENT"
+          echo "🔹 DRY_RUN: $DRY_RUN"
+          
+          # 1. Get Version Info from Git
+          echo "📊 Analyzing Git tags..."
+          GIT_VERSION_TAGS=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)
+          VERSION_TAGS_TO_KEEP=$(echo "$GIT_VERSION_TAGS" | head -n "$KEEP_RECENT")
+          
+          # 2. Get Version Info from NPM
+          echo "📊 Analyzing NPM versions..."
+          NPM_VERSIONS=$(npm view "$PACKAGE_NAME" versions --json | jq -r 'if type=="array" then .[] else . end' | sed 's/^/v/' || true)
+          
+          # 3. Consolidate list of all unique version tags (v*)
+          ALL_VERSION_TAGS=$(printf "%s\n%s" "$(echo "$GIT_VERSION_TAGS")" "$(echo "$NPM_VERSIONS")" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -u || true)
+
+          echo "--------------------------------------------------------------------------------"
+          printf "%-25s %-10s %-20s\n" "TAG" "STATUS" "PLAN"
+          echo "--------------------------------------------------------------------------------"
+
+          for tag in $ALL_VERSION_TAGS; do
+            ACTION="DELETE"
+            REASON="Old version"
+            
+            if echo "$VERSION_TAGS_TO_KEEP" | grep -qx "$tag"; then
+              ACTION="KEEP"
+              REASON="Recent release"
+            fi
+
+            printf "%-25s %-10s %-20s\n" "$tag" "$ACTION" "$REASON"
+
+            if [ "$ACTION" == "DELETE" ]; then
+              VERSION=$(echo "$tag" | sed 's/^v//')
+              if [ "$DRY_RUN" == "true" ]; then
+                echo "   [DRY RUN] Would delete $tag from GitHub Releases, deprecate NPM version $VERSION, and delete Git tag"
+              else
+                # Deprecate NPM version
+                if echo "$NPM_VERSIONS" | grep -qx "$tag"; then
+                  echo "   🗑️ Deprecating NPM version: $VERSION"
+                  npm deprecate "$PACKAGE_NAME@$VERSION" "This version has been pruned by automated cleanup" || echo "   ⚠️ NPM deprecate failed"
+                fi
+                # Delete from GitHub Releases
+                RELEASE_ID=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/$tag" | jq -r .id)
+                if [ "$RELEASE_ID" != "null" ] && [ -n "$RELEASE_ID" ]; then
+                  echo "   🗑️ Deleting GitHub Release: $tag (ID: $RELEASE_ID)"
+                  curl -s -X DELETE -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" > /dev/null
+                fi
+                # Delete from Git
+                if git rev-parse "$tag" >/dev/null 2>&1; then
+                  echo "   🗑️ Deleting Git tag: $tag"
+                  git tag -d "$tag" > /dev/null
+                  git push origin --delete "$tag" > /dev/null || echo "   ⚠️ Git push delete failed (tag might be gone)"
+                fi
+              fi
+            fi
+          done
+          echo "--------------------------------------------------------------------------------"
+          echo "✅ Cleanup plan complete."
