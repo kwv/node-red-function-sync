@@ -14,7 +14,7 @@ module.exports = function (msg) {
 */
 `;
     const meta = getMetadata(content);
-    assert.deepStrictEqual(meta, { id: 'node-123', name: 'My Node' });
+    assert.deepStrictEqual(meta, { id: 'node-123', name: 'My Node', z: 'global' });
 });
 
 test('getMetadata - parses valid metadata at the start', () => {
@@ -29,7 +29,19 @@ module.exports = function (msg) {
 };
 `;
     const meta = getMetadata(content);
-    assert.deepStrictEqual(meta, { id: 'node-456', name: 'Other Node' });
+    assert.deepStrictEqual(meta, { id: 'node-456', name: 'Other Node', z: 'global' });
+});
+
+test('getMetadata - parses JSDoc format', () => {
+    const content = `
+/**
+ * @nr-id a1b2
+ * @nr-name Super Node
+ * @nr-z tab1
+ */
+`;
+    const meta = getMetadata(content);
+    assert.deepStrictEqual(meta, { id: 'a1b2', name: 'Super Node', z: 'tab1' });
 });
 
 test('getMetadata - handles malformed JSON gracefully', () => {
@@ -73,18 +85,20 @@ test('wrapScriptContent - generates correctly formatted file', () => {
     const nodeId = 'node-abc';
     const nodeName = 'Node ABC';
     const funcBody = 'msg.payload = true;\nreturn msg;';
+    const z = 'tab-123';
 
-    const wrapped = wrapScriptContent(nodeId, nodeName, funcBody);
+    const wrapped = wrapScriptContent(nodeId, nodeName, funcBody, z);
 
     assert.ok(wrapped.includes('module.exports = function (msg, flow, env, node, global, context) {'));
     assert.ok(wrapped.includes('    msg.payload = true;'));
-    assert.ok(wrapped.includes('"id": "node-abc"'));
-    assert.ok(wrapped.includes('"name": "Node ABC"'));
+    assert.ok(wrapped.includes('* @nr-id node-abc'));
+    assert.ok(wrapped.includes('* @nr-name Node ABC'));
+    assert.ok(wrapped.includes('* @nr-z tab-123'));
 });
 
 test('wrapScriptContent - handles multiline indentation correctly', () => {
     const funcBody = 'if (true) {\n    console.log("test");\n}';
-    const wrapped = wrapScriptContent('id', 'name', funcBody);
+    const wrapped = wrapScriptContent('id', 'name', funcBody, 'z');
 
     // Check indentation of the second line in the body
     assert.ok(wrapped.includes('        console.log("test");'));

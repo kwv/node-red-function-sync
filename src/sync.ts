@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { METADATA_REGEX, Metadata, prepareScriptContent } from './utils.js';
+import { METADATA_REGEX, Metadata, prepareScriptContent, getMetadata } from './utils.js';
 
 // Parse CLI Arguments
 const options = {
@@ -38,7 +38,7 @@ const FLOWS_PATH = path.resolve(process.cwd(), values.flows);
 const SRC_DIR = path.resolve(process.cwd(), values.src);
 
 function scanScripts(rootDir: string) {
-    const updates: Record<string, { file: string, name?: string, content: string }> = {};
+    const updates: Record<string, { file: string, name?: string, z: string, content: string }> = {};
 
     function walk(dir: string) {
         const files = fs.readdirSync(dir);
@@ -51,30 +51,15 @@ function scanScripts(rootDir: string) {
             } else if (file.endsWith('.js') || file.endsWith('.ts')) {
                 try {
                     const content = fs.readFileSync(filepath, 'utf8');
-                    const match = content.match(METADATA_REGEX);
+                    const meta = getMetadata(content);
 
-                    if (match) {
-                        try {
-                            const metaStr = match[1]?.trim() || '';
-                            if (!metaStr) continue;
-                            let finalMetaStr = metaStr;
-                            if (!finalMetaStr.startsWith('{')) finalMetaStr = `{${finalMetaStr}}`;
-                            // Cleanup trailing commas mostly
-                            finalMetaStr = finalMetaStr.replace(/,\s*}/g, '}');
-
-                            const meta = JSON.parse(finalMetaStr) as Metadata;
-                            const nodeId = meta.id;
-
-                            if (nodeId) {
-                                updates[nodeId] = {
-                                    file: filepath,
-                                    name: meta.name,
-                                    content: content
-                                };
-                            }
-                        } catch (parseErr: any) {
-                            console.warn(`⚠️  Warning: Invalid metadata in ${file}: ${parseErr.message}`);
-                        }
+                    if (meta && meta.id) {
+                        updates[meta.id] = {
+                            file: filepath,
+                            name: meta.name,
+                            z: meta.z,
+                            content: content
+                        };
                     }
                 } catch (readErr: any) {
                     console.warn(`⚠️  Warning: Could not read ${file}: ${readErr.message}`);
@@ -131,10 +116,21 @@ function run() {
 
         const newFunc = prepareScriptContent(data.content);
 
-        // Check if content has changed
+        // Check if content or container has changed
+        let changed = false;
         if (node.func !== newFunc) {
-            console.log(`✅ Updating '${node.name || 'unnamed'}' (${nodeId}) from ${path.basename(data.file)}`);
+            console.log(`✅ Updating '${node.name || 'unnamed'}' (${nodeId}) code from ${path.basename(data.file)}`);
             node.func = newFunc;
+            changed = true;
+        }
+
+        if (data.z && node.z !== data.z) {
+            console.log(`🚚 Moving '${node.name || 'unnamed'}' (${nodeId}) to container ${data.z}`);
+            node.z = data.z;
+            changed = true;
+        }
+
+        if (changed) {
             updatedCount++;
         } else {
             console.log(`⏹️  Skipping '${node.name || 'unnamed'}' (${nodeId}) - Already up to date.`);

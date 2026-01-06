@@ -154,17 +154,8 @@ function findFileById(nodeId: string, rootDir: string): { filepath: string, cont
     return result;
 }
 
-function updateFileContent(nodeId: string, filepath: string, originalContent: string, newFuncBody: string) {
-    const match = originalContent.match(METADATA_REGEX);
-    if (!match) {
-        console.error("Error: Metadata block lost during processing.");
-        return false;
-    }
-
-    const metadataBlock = match[0];
-
-    const newContent = wrapScriptContent(nodeId, '', newFuncBody);
-
+function updateFileContent(nodeId: string, filepath: string, originalContent: string, newFuncBody: string, z: string) {
+    const newContent = wrapScriptContent(nodeId, '', newFuncBody, z);
     fs.writeFileSync(filepath, newContent.trim() + '\n', 'utf8');
     return true;
 }
@@ -239,7 +230,7 @@ function run() {
         }
 
         console.log(`📂 Target file: ${currentPath}`);
-        if (updateFileContent(nodeId, currentPath, fileInfo.content, funcContent)) {
+        if (updateFileContent(nodeId, currentPath, fileInfo.content, funcContent, targetNode.z)) {
             console.log(`💾 Successfully updated ${path.relative(SRC_DIR, currentPath)}`);
         } else {
             console.error("❌ Failed to update file.");
@@ -250,7 +241,7 @@ function run() {
 
         if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
 
-        const initialContent = wrapScriptContent(nodeId, targetNode.name || '', funcContent);
+        const initialContent = wrapScriptContent(nodeId, targetNode.name || '', funcContent, targetNode.z);
 
         try {
             fs.writeFileSync(targetPath, initialContent, 'utf8');

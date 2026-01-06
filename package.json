@@ -1,6 +1,6 @@
 {
     "name": "node-red-function-sync",
-    "version": "1.0.4",
+    "version": "2.0.0",
     "description": "Tooling for developing Node-RED function nodes locally using standard JavaScript workflows.",
     "author": "Kris Van de Steeg",
     "license": "MIT",
@@ -20,7 +20,8 @@
     ],
     "bin": {
         "nr-extract": "./dist/extract.js",
-        "nr-sync": "./dist/sync.js"
+        "nr-sync": "./dist/sync.js",
+        "nr-migrate": "./dist/migrate.js"
     },
     "keywords": [
         "node-red",

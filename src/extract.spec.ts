@@ -30,7 +30,6 @@ test('Extraction organization by tab', () => {
     fs.writeFileSync(FLOWS_PATH, JSON.stringify(flows), 'utf8');
 
     // Run the compiled extract script
-    // Note: We use the already built dist/extract.js
     const extractScript = path.resolve(process.cwd(), 'dist/extract.js');
     execSync(`node ${extractScript} --flows ${FLOWS_PATH} --src ${SRC_DIR} node1`);
 
@@ -39,7 +38,8 @@ test('Extraction organization by tab', () => {
 
     const content = fs.readFileSync(expectedPath, 'utf8');
     assert.ok(content.includes('return msg;'), 'Content should include function body');
-    assert.ok(content.includes('"id": "node1"'), 'Content should include node ID');
+    assert.ok(content.includes('@nr-id node1'), 'Content should include node ID');
+    assert.ok(content.includes('@nr-z tab1'), 'Content should include container ID');
 });
 
 test('Extraction handles missing tab (default to global)', () => {
@@ -53,6 +53,9 @@ test('Extraction handles missing tab (default to global)', () => {
 
     const expectedPath = path.join(SRC_DIR, 'global', 'global-func.js');
     assert.ok(fs.existsSync(expectedPath), `File should exist at ${expectedPath}`);
+
+    const content = fs.readFileSync(expectedPath, 'utf8');
+    assert.ok(content.includes('@nr-z unknown-tab'), 'Content should include container ID even if unknown');
 });
 
 test('Extraction organization by subflow', () => {
@@ -69,20 +72,21 @@ test('Extraction organization by subflow', () => {
     assert.ok(fs.existsSync(expectedPath), `File should exist at ${expectedPath}`);
 });
 
-test('Extraction moves existing file to new structure', () => {
+test('Extraction moves existing file to new structure and upgrades metadata', () => {
     const flows = [
         { id: 'tab_move', type: 'tab', label: 'New Home' },
         { id: 'node_move', type: 'function', z: 'tab_move', name: 'Mover', func: 'return;' }
     ];
     fs.writeFileSync(FLOWS_PATH, JSON.stringify(flows), 'utf8');
 
-    // Create file in old location (root of src)
+    // Create file in old location (root of src) using OLD format
     const oldPath = path.join(SRC_DIR, 'mover.js');
     const oldContent = `
 module.exports = function (msg) { return; };
 /* flows.json attributes
     "id": "node_move",
-    "name": "Mover"
+    "name": "Mover",
+    "tabId": "old-tab"
 */`;
     fs.writeFileSync(oldPath, oldContent, 'utf8');
 
@@ -92,4 +96,8 @@ module.exports = function (msg) { return; };
     const newPath = path.join(SRC_DIR, 'new-home', 'mover.js');
     assert.ok(fs.existsSync(newPath), `File should have moved to ${newPath}`);
     assert.ok(!fs.existsSync(oldPath), 'Old file should no longer exist');
+
+    const content = fs.readFileSync(newPath, 'utf8');
+    assert.ok(content.includes('@nr-id node_move'), 'Should have upgraded to JSDoc');
+    assert.ok(content.includes('@nr-z tab_move'), 'Should have updated container ID');
 });
