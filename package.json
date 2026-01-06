@@ -1,6 +1,6 @@
 {
     "name": "node-red-function-sync",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "description": "Tooling for developing Node-RED function nodes locally using standard JavaScript workflows.",
     "author": "Kris Van de Steeg",
     "license": "MIT",
@@ -30,7 +30,7 @@
     "scripts": {
         "build": "tsup src/*.ts --format cjs,esm --dts --out-dir dist",
         "build:watch": "tsup --watch src/*.ts --format cjs,esm --dts --out-dir dist",
-        "test": "tsx --test src/index.spec.ts",
+        "test": "tsx --test src/*.spec.ts",
         "prepare": "npm run build",
         "prepublishOnly": "npm test"
     },

@@ -64,10 +64,12 @@ function scanFunctions(flows: any[], srcDir: string) {
     const exportedMap = buildIdMap(srcDir);
     const tabMap = new Map<string, string>();
 
-    // Build Tab Map
+    // Build Tab/Container Map
     flows.forEach(n => {
         if (n.type === 'tab') {
             tabMap.set(n.id, n.label || 'Unknown Tab');
+        } else if (n.type === 'subflow') {
+            tabMap.set(n.id, n.name || 'Unknown Subflow');
         }
     });
 
@@ -200,11 +202,13 @@ function run() {
         process.exit(1);
     }
 
-    // Build Tab Map
+    // Build Tab/Container Map
     const tabMap = new Map<string, string>();
     flows.forEach(n => {
         if (n.type === 'tab') {
             tabMap.set(n.id, n.label || n.id);
+        } else if (n.type === 'subflow') {
+            tabMap.set(n.id, n.name || n.id);
         }
     });
 
