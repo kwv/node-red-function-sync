@@ -181,7 +181,14 @@ function run() {
         return;
     }
 
-    const nodeId = positionals[0];
+    let nodeId = positionals[0];
+    if (nodeId && nodeId.includes('=')) {
+        const parts = nodeId.split('=');
+        if (parts[0] === 'node_id') {
+            nodeId = parts[1];
+        }
+    }
+
     if (!nodeId) {
         console.error("Error: node_id is required unless --scan is used");
         process.exit(1);
