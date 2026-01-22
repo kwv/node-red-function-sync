@@ -17,7 +17,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,11 +29,16 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Bump patch version and create tag
+      - name: Bump patch version and push to main
         run: |
           npm version patch --no-git-tag-version
           VERSION=$(jq -r '.version' package.json)
           git add package.json
           git commit -m "chore: release v${VERSION}"
-          git tag "v${VERSION}"
-          git push origin main --follow-tags
+          git push origin main
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Create and push tag
+        run: |
+          git tag "v${{ env.VERSION }}"
+          git push origin "v${{ env.VERSION }}"
